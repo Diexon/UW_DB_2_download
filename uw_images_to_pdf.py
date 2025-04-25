@@ -19,7 +19,7 @@ def is_valid_url(url):
 
 
 def download_image(url):
-    """Download an image from a URL and return it as PIL Image"""
+    """Download an image from a URL and return it as PIL Image with original filename"""
     try:
         response = requests.get(url, stream=True, timeout=10)
         response.raise_for_status()
@@ -28,30 +28,46 @@ def download_image(url):
         content_type = response.headers.get("content-type", "")
         if "image" not in content_type:
             print(f"URL does not point to an image (Content-Type: {content_type})")
-            return None
+            return None, None
 
-        return Image.open(BytesIO(response.content))
+        # Extract original filename from URL
+        img_filename = os.path.basename(urlparse(url).path)
+        if not img_filename:
+            img_filename = "image.jpg"
+
+        return Image.open(BytesIO(response.content)), img_filename
 
     except requests.exceptions.RequestException as e:
         print(f"Failed to download {url}: {e}")
-        return None
+        return None, None
     except Exception as e:
         print(f"Error processing image: {e}")
-        return None
+        return None, None
 
 
-def save_as_png(images, output_dir, prefix="image"):
-    """Save images as individual PNG files"""
+def save_as_png(images_with_names, output_dir):
+    """Save images as individual PNG files with sequence prefix and original names"""
     try:
         os.makedirs(output_dir, exist_ok=True)
 
-        for i, img in enumerate(images, 1):
-            filename = f"{prefix}_{i:03d}.png"
-            filepath = os.path.join(output_dir, filename)
+        for i, (img, original_name) in enumerate(images_with_names, 1):
+            # Split filename and extension
+            name_part, ext = os.path.splitext(original_name)
+            if not ext or ext.lower() not in [".png", ".jpg", ".jpeg", ".gif", ".webp"]:
+                ext = ".png"  # Default to .png if no valid extension
+
+            # Create new filename with sequence prefix
+            new_filename = f"{i:03d}_{name_part}{ext}"
+            filepath = os.path.join(output_dir, new_filename)
+
+            # Convert to PNG if needed
+            if ext.lower() != ".png":
+                img = img.convert("RGB")
+
             img.save(filepath, "PNG")
             print(f"Saved: {filepath}")
 
-        print(f"\nSuccessfully saved {len(images)} images to {output_dir}")
+        print(f"\nSuccessfully saved {len(images_with_names)} images to {output_dir}")
         return True
     except Exception as e:
         print(f"Failed to save PNG files: {e}")
@@ -59,7 +75,11 @@ def save_as_png(images, output_dir, prefix="image"):
 
 
 def create_pdf(
-    images, output_path, image_width=63 * mm, image_height=88 * mm, margin=10 * mm
+    images_with_names,
+    output_path,
+    image_width=63 * mm,
+    image_height=88 * mm,
+    margin=10 * mm,
 ):
     """
     Create a PDF with images at specific sizes
@@ -82,7 +102,7 @@ def create_pdf(
 
         current_page_images = []
 
-        for i, img in enumerate(images, 1):
+        for i, (img, _) in enumerate(images_with_names, 1):
             current_page_images.append(img)
 
             if len(current_page_images) >= actual_per_page:
@@ -161,25 +181,25 @@ def draw_images_on_page(
         )
 
 
-def process_images(images, output_path, output_format="pdf", **kwargs):
+def process_images(images_with_names, output_path, output_format="png", **kwargs):
     """Process images according to the specified output format"""
-    if output_format.lower() == "png":
-        return save_as_png(images, output_path, prefix=kwargs.get("prefix", "image"))
-    else:
+    if output_format.lower() == "pdf":
         return create_pdf(
-            images,
+            images_with_names,
             output_path,
             image_width=kwargs.get("image_width", 63 * mm),
             image_height=kwargs.get("image_height", 88 * mm),
             margin=kwargs.get("margin", 10 * mm),
         )
+    else:
+        return save_as_png(images_with_names, output_path)
 
 
 def find_and_process_images(
     target_url,
     output_path,
     class_name="mb-4 cardviewcard",
-    output_format="pdf",
+    output_format="png",
     **kwargs,
 ):
     """
@@ -200,7 +220,7 @@ def find_and_process_images(
 
         print(f"Found {len(containers)} containers with class '{class_name}'")
 
-        images = []
+        images_with_names = []
         for i, container in enumerate(containers, 1):
             img_tags = container.find_all("img")
 
@@ -219,17 +239,19 @@ def find_and_process_images(
                     print(f"Invalid image URL: {img_url}")
                     continue
 
-                print(f"Downloading image {len(images) + 1}: {img_url}")
-                image = download_image(img_url)
+                print(f"Downloading image {len(images_with_names) + 1}: {img_url}")
+                image, original_name = download_image(img_url)
                 if image:
-                    images.append(image)
+                    images_with_names.append((image, original_name))
 
-        if not images:
+        if not images_with_names:
             print("No images were downloaded")
             return False
 
-        print(f"\nProcessing {len(images)} images as {output_format.upper()}...")
-        return process_images(images, output_path, output_format, **kwargs)
+        print(
+            f"\nProcessing {len(images_with_names)} images as {output_format.upper()}..."
+        )
+        return process_images(images_with_names, output_path, output_format, **kwargs)
 
     except Exception as e:
         print(f"An error occurred: {e}", file=sys.stderr)
@@ -238,14 +260,14 @@ def find_and_process_images(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Download images and save as PDF or individual PNG files"
+        description="Download images and save as PNG (default) or PDF"
     )
     parser.add_argument("url", help="URL of the webpage to scan")
     parser.add_argument(
         "--output",
         "-o",
-        default="output.pdf",
-        help="Output path (PDF file or directory for PNGs)",
+        default="downloaded_images",
+        help="Output path (directory for PNGs or filename for PDF)",
     )
     parser.add_argument(
         "--class",
@@ -257,9 +279,9 @@ def main():
     parser.add_argument(
         "--format",
         "-f",
-        choices=["pdf", "png"],
-        default="pdf",
-        help="Output format (pdf or png)",
+        choices=["png", "pdf"],
+        default="png",
+        help="Output format (png or pdf)",
     )
     parser.add_argument(
         "--width",
@@ -272,9 +294,6 @@ def main():
         type=float,
         default=88,
         help="Image height in mm (PDF only, default: 88)",
-    )
-    parser.add_argument(
-        "--prefix", default="image", help="Filename prefix for PNG files (PNG only)"
     )
 
     args = parser.parse_args()
@@ -294,7 +313,6 @@ def main():
         output_format=args.format,
         image_width=args.width * mm,
         image_height=args.height * mm,
-        prefix=args.prefix,
     )
 
     sys.exit(0 if success else 1)
