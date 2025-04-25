@@ -40,20 +40,33 @@ def download_image(url):
         return None
 
 
+def save_as_png(images, output_dir, prefix="image"):
+    """Save images as individual PNG files"""
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+
+        for i, img in enumerate(images, 1):
+            filename = f"{prefix}_{i:03d}.png"
+            filepath = os.path.join(output_dir, filename)
+            img.save(filepath, "PNG")
+            print(f"Saved: {filepath}")
+
+        print(f"\nSuccessfully saved {len(images)} images to {output_dir}")
+        return True
+    except Exception as e:
+        print(f"Failed to save PNG files: {e}")
+        return False
+
+
 def create_pdf(
-    images,
-    output_path,
-    page_size=A4,
-    image_width=63 * mm,
-    image_height=88 * mm,
-    margin=0 * mm,
+    images, output_path, image_width=63 * mm, image_height=88 * mm, margin=10 * mm
 ):
     """
-    Create a PDF with images at specific sizes (default 63×88 mm)
+    Create a PDF with images at specific sizes
     """
     try:
-        c = canvas.Canvas(output_path, pagesize=page_size)
-        page_width, page_height = page_size
+        c = canvas.Canvas(output_path, pagesize=A4)
+        page_width, page_height = A4
 
         # Calculate how many images fit horizontally and vertically
         available_width = page_width - 2 * margin
@@ -61,19 +74,17 @@ def create_pdf(
 
         images_per_row = max(1, math.floor(available_width / (image_width + margin)))
         images_per_col = max(1, math.floor(available_height / (image_height + margin)))
-
-        # Recalculate images per page based on actual fit
         actual_per_page = images_per_row * images_per_col
+
         print(
             f"Arranging {actual_per_page} images per page ({images_per_row}×{images_per_col})"
         )
 
         current_page_images = []
 
-        for i, img in enumerate(images):
+        for i, img in enumerate(images, 1):
             current_page_images.append(img)
 
-            # When we have enough images for a page, draw them
             if len(current_page_images) >= actual_per_page:
                 draw_images_on_page(
                     c,
@@ -89,7 +100,6 @@ def create_pdf(
                 c.showPage()
                 current_page_images = []
 
-        # Draw remaining images
         if current_page_images:
             draw_images_on_page(
                 c,
@@ -124,12 +134,11 @@ def draw_images_on_page(
     image_height,
     margin,
 ):
-    """Draw images on a PDF page with specific dimensions"""
+    """Draw images on a PDF page"""
     for i, img in enumerate(images):
         row = i // images_per_row
         col = i % images_per_row
 
-        # Calculate position (centered in available space)
         total_row_width = images_per_row * image_width + (images_per_row - 1) * margin
         start_x = (page_width - total_row_width) / 2 + col * (image_width + margin)
 
@@ -140,10 +149,7 @@ def draw_images_on_page(
             + row * margin
         )
 
-        # Open image with PIL and create ImageReader
         img_reader = ImageReader(img)
-
-        # Draw image with exact dimensions
         c.drawImage(
             img_reader,
             start_x,
@@ -155,28 +161,37 @@ def draw_images_on_page(
         )
 
 
+def process_images(images, output_path, output_format="pdf", **kwargs):
+    """Process images according to the specified output format"""
+    if output_format.lower() == "png":
+        return save_as_png(images, output_path, prefix=kwargs.get("prefix", "image"))
+    else:
+        return create_pdf(
+            images,
+            output_path,
+            image_width=kwargs.get("image_width", 63 * mm),
+            image_height=kwargs.get("image_height", 88 * mm),
+            margin=kwargs.get("margin", 10 * mm),
+        )
+
+
 def find_and_process_images(
     target_url,
-    output_pdf,
+    output_path,
     class_name="mb-4 cardviewcard",
-    image_width=63,
-    image_height=88,
+    output_format="pdf",
+    **kwargs,
 ):
     """
-    Navigate through a webpage's HTML to find images within specific class
-    and save them to a PDF with specific image sizes
+    Navigate through a webpage's HTML to find images and process them
     """
     try:
-        # Fetch the page with a timeout
         print(f"Fetching page: {target_url}")
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         response = requests.get(target_url, headers=headers, timeout=10)
         response.raise_for_status()
 
-        # Parse HTML
         soup = BeautifulSoup(response.text, "html.parser")
-
-        # Find all containers with the specified class
         containers = soup.find_all(class_=class_name)
 
         if not containers:
@@ -185,10 +200,7 @@ def find_and_process_images(
 
         print(f"Found {len(containers)} containers with class '{class_name}'")
 
-        # Find all images within these containers
         images = []
-        downloaded_count = 0
-
         for i, container in enumerate(containers, 1):
             img_tags = container.find_all("img")
 
@@ -201,32 +213,23 @@ def find_and_process_images(
                 if not img_url:
                     continue
 
-                # Make URL absolute
                 img_url = urljoin(target_url, img_url)
 
                 if not is_valid_url(img_url):
                     print(f"Invalid image URL: {img_url}")
                     continue
 
-                print(f"Downloading image {downloaded_count + 1}: {img_url}")
+                print(f"Downloading image {len(images) + 1}: {img_url}")
                 image = download_image(img_url)
                 if image:
                     images.append(image)
-                    downloaded_count += 1
 
         if not images:
             print("No images were downloaded")
             return False
 
-        print(
-            f"\nCreating PDF with {downloaded_count} images (size: {image_width}×{image_height} mm)..."
-        )
-        return create_pdf(
-            images,
-            output_pdf,
-            image_width=image_width * mm,
-            image_height=image_height * mm,
-        )
+        print(f"\nProcessing {len(images)} images as {output_format.upper()}...")
+        return process_images(images, output_path, output_format, **kwargs)
 
     except Exception as e:
         print(f"An error occurred: {e}", file=sys.stderr)
@@ -235,14 +238,14 @@ def find_and_process_images(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Download images from HTML containers and save as PDF with specific image sizes"
+        description="Download images and save as PDF or individual PNG files"
     )
     parser.add_argument("url", help="URL of the webpage to scan")
     parser.add_argument(
         "--output",
         "-o",
         default="output.pdf",
-        help="Output PDF filename (default: output.pdf)",
+        help="Output path (PDF file or directory for PNGs)",
     )
     parser.add_argument(
         "--class",
@@ -252,10 +255,26 @@ def main():
         help="HTML class name to search for image containers",
     )
     parser.add_argument(
-        "--width", type=float, default=63, help="Image width in mm (default: 63)"
+        "--format",
+        "-f",
+        choices=["pdf", "png"],
+        default="pdf",
+        help="Output format (pdf or png)",
     )
     parser.add_argument(
-        "--height", type=float, default=88, help="Image height in mm (default: 88)"
+        "--width",
+        type=float,
+        default=63,
+        help="Image width in mm (PDF only, default: 63)",
+    )
+    parser.add_argument(
+        "--height",
+        type=float,
+        default=88,
+        help="Image height in mm (PDF only, default: 88)",
+    )
+    parser.add_argument(
+        "--prefix", default="image", help="Filename prefix for PNG files (PNG only)"
     )
 
     args = parser.parse_args()
@@ -264,16 +283,18 @@ def main():
         print(f"Error: Invalid URL provided - {args.url}", file=sys.stderr)
         sys.exit(1)
 
-    if args.width <= 0 or args.height <= 0:
+    if args.format == "pdf" and (args.width <= 0 or args.height <= 0):
         print("Error: Image dimensions must be positive values", file=sys.stderr)
         sys.exit(1)
 
     success = find_and_process_images(
         target_url=args.url,
-        output_pdf=args.output,
+        output_path=args.output,
         class_name=args.class_name,
-        image_width=args.width,
-        image_height=args.height,
+        output_format=args.format,
+        image_width=args.width * mm,
+        image_height=args.height * mm,
+        prefix=args.prefix,
     )
 
     sys.exit(0 if success else 1)
