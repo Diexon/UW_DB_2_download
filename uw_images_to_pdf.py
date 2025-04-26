@@ -10,6 +10,7 @@ from PIL import Image
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, mm
 from reportlab.lib.utils import ImageReader
+import glob
 
 
 def is_valid_url(url):
@@ -80,9 +81,12 @@ def create_pdf(
     image_width=63 * mm,
     image_height=88 * mm,
     margin=10 * mm,
+    back_card_path="card_back/objective-back.png",
+    alternate_back_card_path="card_back/power-back.png",
+    back_card_limit=12,
 ):
     """
-    Create a PDF with images at specific sizes
+    Create a PDF with images at specific sizes and interleave even pages with card backs
     """
     try:
         c = canvas.Canvas(output_path, pagesize=A4)
@@ -101,29 +105,45 @@ def create_pdf(
         )
 
         current_page_images = []
+        total_pages = math.ceil(len(images_with_names) / actual_per_page)
 
-        for i, (img, _) in enumerate(images_with_names, 1):
-            current_page_images.append(img)
+        # Load card back images
+        back_card = ImageReader(back_card_path)
+        alternate_back_card = ImageReader(alternate_back_card_path)
 
-            if len(current_page_images) >= actual_per_page:
-                draw_images_on_page(
-                    c,
-                    current_page_images,
-                    images_per_row,
-                    images_per_col,
-                    page_width,
-                    page_height,
-                    image_width,
-                    image_height,
-                    margin,
-                )
-                c.showPage()
-                current_page_images = []
-
-        if current_page_images:
+        back_counter = 0
+        for page_num in range(1, total_pages + 1):
+            # Add front card images
+            start_index = (page_num - 1) * actual_per_page
+            end_index = start_index + actual_per_page
+            current_page_images = [
+                img for img, _ in images_with_names[start_index:end_index]
+            ]
             draw_images_on_page(
                 c,
                 current_page_images,
+                images_per_row,
+                images_per_col,
+                page_width,
+                page_height,
+                image_width,
+                image_height,
+                margin,
+            )
+            c.showPage()
+
+            # Add back card on even pages
+            back_images = []
+            for i in range(len(current_page_images)):
+                if back_counter < back_card_limit:
+                    back_images.append(back_card)
+                else:
+                    back_images.append(alternate_back_card)
+                back_counter += 1
+
+            draw_images_on_page(
+                c,
+                back_images,
                 images_per_row,
                 images_per_col,
                 page_width,
@@ -258,6 +278,30 @@ def find_and_process_images(
         return False
 
 
+def load_images_from_folder(folder_path):
+    """Load images from a local folder"""
+    try:
+        image_files = glob.glob(os.path.join(folder_path, "*"))
+        images_with_names = []
+
+        for image_file in image_files:
+            try:
+                img = Image.open(image_file)
+                images_with_names.append((img, os.path.basename(image_file)))
+            except Exception as e:
+                print(f"Failed to load image {image_file}: {e}")
+
+        if not images_with_names:
+            print(f"No valid images found in folder: {folder_path}")
+            return None
+
+        print(f"Loaded {len(images_with_names)} images from folder: {folder_path}")
+        return images_with_names
+    except Exception as e:
+        print(f"Error loading images from folder: {e}")
+        return None
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Download images and save as PNG (default) or PDF"
@@ -301,26 +345,44 @@ def main():
         default=0,
         help="Cards margin in mm (PDF only, default: 0)",
     )
+    parser.add_argument(
+        "--folder",
+        "-l",
+        help="Path to a local folder containing images (skips downloading)",
+    )
 
     args = parser.parse_args()
 
-    if not is_valid_url(args.url):
-        print(f"Error: Invalid URL provided - {args.url}", file=sys.stderr)
-        sys.exit(1)
+    if args.folder:
+        images_with_names = load_images_from_folder(args.folder)
+        if not images_with_names:
+            sys.exit(1)
+        success = process_images(
+            images_with_names,
+            args.output,
+            output_format=args.format,
+            image_width=args.width * mm,
+            image_height=args.height * mm,
+            margin=args.margin * mm,
+        )
+    else:
+        if not is_valid_url(args.url):
+            print(f"Error: Invalid URL provided - {args.url}", file=sys.stderr)
+            sys.exit(1)
 
-    if args.format == "pdf" and (args.width <= 0 or args.height <= 0):
-        print("Error: Image dimensions must be positive values", file=sys.stderr)
-        sys.exit(1)
+        if args.format == "pdf" and (args.width <= 0 or args.height <= 0):
+            print("Error: Image dimensions must be positive values", file=sys.stderr)
+            sys.exit(1)
 
-    success = find_and_process_images(
-        target_url=args.url,
-        output_path=args.output,
-        class_name=args.class_name,
-        output_format=args.format,
-        image_width=args.width * mm,
-        image_height=args.height * mm,
-        margin=args.margin * mm,
-    )
+        success = find_and_process_images(
+            target_url=args.url,
+            output_path=args.output,
+            class_name=args.class_name,
+            output_format=args.format,
+            image_width=args.width * mm,
+            image_height=args.height * mm,
+            margin=args.margin * mm,
+        )
 
     sys.exit(0 if success else 1)
 
