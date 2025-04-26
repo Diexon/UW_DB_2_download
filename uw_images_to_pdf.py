@@ -295,6 +295,12 @@ def main():
         default=88,
         help="Image height in mm (PDF only, default: 88)",
     )
+    parser.add_argument(
+        "--margin",
+        type=float,
+        default=0,
+        help="Cards margin in mm (PDF only, default: 0)",
+    )
 
     args = parser.parse_args()
 
@@ -313,6 +319,7 @@ def main():
         output_format=args.format,
         image_width=args.width * mm,
         image_height=args.height * mm,
+        margin=args.margin * mm,
     )
 
     sys.exit(0 if success else 1)
