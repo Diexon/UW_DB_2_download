@@ -174,7 +174,12 @@ def draw_images_on_page(
     image_height,
     margin,
 ):
-    """Draw images on a PDF page"""
+    """Draw images on a PDF page with a dark red background."""
+    # Set the background color to dark red
+    c.setFillColorRGB(0.1, 0, 0)  # RGB for dark red
+    c.rect(0, 0, page_width, page_height, fill=True, stroke=False)
+
+    # Draw the images
     for i, img in enumerate(images):
         row = i // images_per_row
         col = i % images_per_row
@@ -330,7 +335,7 @@ def main():
     parser.add_argument(
         "--width",
         type=float,
-        default=63,
+        default=63.5,
         help="Image width in mm (PDF only, default: 63)",
     )
     parser.add_argument(
