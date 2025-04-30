@@ -84,6 +84,7 @@ def create_pdf(
     back_card_path="card_back/objective-back.png",
     alternate_back_card_path="card_back/power-back.png",
     back_card_limit=12,
+    background_color=(1, 1, 1),  # Default to white (RGB)
 ):
     """
     Create a PDF with images at specific sizes and interleave even pages with card backs
@@ -129,6 +130,7 @@ def create_pdf(
                 image_width,
                 image_height,
                 margin,
+                background_color,
             )
             c.showPage()
 
@@ -151,6 +153,7 @@ def create_pdf(
                 image_width,
                 image_height,
                 margin,
+                background_color,
             )
             c.showPage()
 
@@ -173,10 +176,11 @@ def draw_images_on_page(
     image_width,
     image_height,
     margin,
+    background_color,
 ):
-    """Draw images on a PDF page with a dark red background."""
-    # Set the background color to dark red
-    c.setFillColorRGB(0.1, 0, 0)  # RGB for dark red
+    """Draw images on a PDF page with a configurable background color."""
+    # Set the background color
+    c.setFillColorRGB(*background_color)  # Unpack RGB tuple
     c.rect(0, 0, page_width, page_height, fill=True, stroke=False)
 
     # Draw the images
@@ -215,6 +219,7 @@ def process_images(images_with_names, output_path, output_format="png", **kwargs
             image_width=kwargs.get("image_width", 63 * mm),
             image_height=kwargs.get("image_height", 88 * mm),
             margin=kwargs.get("margin", 10 * mm),
+            background_color=kwargs.get("background_color", (1, 1, 1)),
         )
     else:
         return save_as_png(images_with_names, output_path)
@@ -307,6 +312,17 @@ def load_images_from_folder(folder_path):
         return None
 
 
+def parse_background_color(color_str):
+    """Parse a background color string in the format 'R,G,B' into an RGB tuple."""
+    try:
+        r, g, b = map(float, color_str.split(","))
+        return r, g, b
+    except Exception:
+        raise argparse.ArgumentTypeError(
+            "Background color must be in the format 'R,G,B' with values between 0 and 1."
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Download images and save as PNG (default) or PDF"
@@ -355,6 +371,13 @@ def main():
         "-l",
         help="Path to a local folder containing images (skips downloading)",
     )
+    parser.add_argument(
+        "--background-color",
+        "-b",
+        type=parse_background_color,
+        default="1,1,1",  # Default to white
+        help="Background color for the PDF in 'R,G,B' format (values between 0 and 1). Default is white.",
+    )
 
     args = parser.parse_args()
 
@@ -369,6 +392,7 @@ def main():
             image_width=args.width * mm,
             image_height=args.height * mm,
             margin=args.margin * mm,
+            background_color=args.background_color,
         )
     else:
         if not is_valid_url(args.url):
@@ -387,6 +411,7 @@ def main():
             image_width=args.width * mm,
             image_height=args.height * mm,
             margin=args.margin * mm,
+            background_color=args.background_color,
         )
 
     sys.exit(0 if success else 1)
