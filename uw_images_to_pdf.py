@@ -80,7 +80,7 @@ def create_pdf(
     output_path,
     image_width=63 * mm,
     image_height=88 * mm,
-    margin=10 * mm,
+    margin=0 * mm,
     back_card_path="card_back/objective-back.png",
     alternate_back_card_path="card_back/power-back.png",
     back_card_limit=12,
@@ -218,7 +218,7 @@ def process_images(images_with_names, output_path, output_format="png", **kwargs
             output_path,
             image_width=kwargs.get("image_width", 63 * mm),
             image_height=kwargs.get("image_height", 88 * mm),
-            margin=kwargs.get("margin", 10 * mm),
+            margin=kwargs.get("margin", 0 * mm),
             background_color=kwargs.get("background_color", (1, 1, 1)),
         )
     else:
@@ -351,7 +351,7 @@ def main():
     parser.add_argument(
         "--width",
         type=float,
-        default=63.5,
+        default=63,
         help="Image width in mm (PDF only, default: 63)",
     )
     parser.add_argument(
