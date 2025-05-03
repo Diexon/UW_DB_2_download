@@ -56,39 +56,52 @@ def download_images(urls, output_folder):
 def draw_images_on_page_specific(
     c, images_with_names, image_width, image_height, margin
 ):
-    """Draw images on a PDF page with specific dimensions."""
+    """Draw images on a PDF, creating new pages as needed."""
     page_width, page_height = A4
 
     # Calculate how many images fit horizontally and vertically
-    available_width = page_width  # - 2 * margin
-    available_height = page_height  # - 2 * margin
+    available_width = page_width - 2 * margin
+    available_height = page_height - 2 * margin
 
     images_per_row = max(1, int(available_width // (image_width + margin)))
     images_per_col = max(1, int(available_height // (image_height + margin)))
-    for i, (img, _) in enumerate(images_with_names):
-        row = i // images_per_row
-        col = i % images_per_row
+    images_per_page = images_per_row * images_per_col
 
-        total_row_width = images_per_row * image_width + (images_per_row - 1) * margin
-        start_x = (page_width - total_row_width) / 2 + col * (image_width + margin)
+    for page_start in range(0, len(images_with_names), images_per_page):
+        page_images = images_with_names[page_start : page_start + images_per_page]
 
-        total_col_height = images_per_col * image_height + (images_per_col - 1) * margin
-        start_y = page_height - (
-            (page_height - total_col_height) / 2
-            + (row + 1) * image_height
-            + row * margin
-        )
+        for i, (img, _) in enumerate(page_images):
+            row = i // images_per_row
+            col = i % images_per_row
 
-        img_reader = ImageReader(img)
-        c.drawImage(
-            img_reader,
-            start_x,
-            start_y,
-            width=image_width,
-            height=image_height,
-            preserveAspectRatio=True,
-            anchor="c",
-        )
+            total_row_width = (
+                images_per_row * image_width + (images_per_row - 1) * margin
+            )
+            start_x = (page_width - total_row_width) / 2 + col * (image_width + margin)
+
+            total_col_height = (
+                images_per_col * image_height + (images_per_col - 1) * margin
+            )
+            start_y = page_height - (
+                (page_height - total_col_height) / 2
+                + (row + 1) * image_height
+                + row * margin
+            )
+
+            img_reader = ImageReader(img)
+            c.drawImage(
+                img_reader,
+                start_x,
+                start_y,
+                width=image_width,
+                height=image_height,
+                preserveAspectRatio=True,
+                anchor="c",
+            )
+
+        # Add a new page if there are more images to process
+        if page_start + images_per_page < len(images_with_names):
+            c.showPage()
 
 
 def process_images_and_generate_pdf(images_with_names, output_pdf):
