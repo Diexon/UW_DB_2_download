@@ -1,4 +1,6 @@
 import subprocess
+import os
+
 
 
 def run_uw_images_to_pdf(configs):
@@ -6,7 +8,7 @@ def run_uw_images_to_pdf(configs):
     Run uw_images_to_pdf.py with different configurations.
     :param configs: List of dictionaries containing configurations.
     """
-    script_path = "c:\\Users\\diegi\\Documents\\NordLocker\\Lockers\\CloudLockers\\6209977\\uw_embergard\\uw_images_to_pdf.py"
+    script_path = os.path.dirname(__file__) + "/uw_images_to_pdf.py"
 
     for i, config in enumerate(configs, 1):
         print(f"Running configuration {i}/{len(configs)}...")
@@ -63,7 +65,7 @@ if __name__ == "__main__":
     # Define different configurations for all decks
     base_urls = {
         "edge_of_the_knive": "https://www.underworldsdb.com/shared.php?deck=0,EK1,EK2,EK3,EK4,EK5,EK6,EK7,EK8,EK9,EK10,EK11,EK12,EK13,EK14,EK15,EK16,EK17,EK18,EK19,EK20,EK21,EK22,EK23,EK24,EK25,EK26,EK27,EK28,EK29,EK30,EK31,EK32&format=rivals&deckname=Edge%20of%20the%20Knife%20Rivals%20Deck",
-        "endless_fury": "https://www.underworldsdb.com/shared.php?deck=0,RF1,RF2,RF3,RF4,RF5,RF6,RF7,RF8,RF9,RF10,RF11,RF12,RF13,RF14,RF15,RF16,RF17,RF18,RF19,RF20,RF21,RF22,RF23,RF24,RF25,RF26,RF27,RF28,RF29,RF30,RF31,RF32&format=rivals&deckname=Reckless%20Fury%20Rivals%20Deck",
+        "reckless_fury": "https://www.underworldsdb.com/shared.php?deck=0,RF1,RF2,RF3,RF4,RF5,RF6,RF7,RF8,RF9,RF10,RF11,RF12,RF13,RF14,RF15,RF16,RF17,RF18,RF19,RF20,RF21,RF22,RF23,RF24,RF25,RF26,RF27,RF28,RF29,RF30,RF31,RF32&format=rivals&deckname=Reckless%20Fury%20Rivals%20Deck",
         "wrack_and_ruin": "https://www.underworldsdb.com/shared.php?deck=0,WR1,WR2,WR3,WR4,WR5,WR6,WR7,WR8,WR9,WR10,WR11,WR12,WR13,WR14,WR15,WR16,WR17,WR18,WR19,WR20,WR21,WR22,WR23,WR24,WR25,WR26,WR27,WR28,WR29,WR30,WR31,WR32&format=rivals&deckname=Wrack%20and%20Ruin%20Rivals%20Deck",
         "blazing_assault": "https://www.underworldsdb.com/shared.php?deck=0,BL1,BL2,BL3,BL4,BL5,BL6,BL7,BL8,BL9,BL10,BL11,BL12,BL13,BL14,BL15,BL16,BL17,BL18,BL19,BL20,BL21,BL22,BL23,BL24,BL25,BL26,BL27,BL28,BL29,BL30,BL31,BL32&format=rivals&deckname=Blazing%20Assault%20Rivals%20Deck",
         "emberstone_sentinels": "https://www.underworldsdb.com/shared.php?deck=0,ES1,ES2,ES3,ES4,ES5,ES6,ES7,ES8,ES9,ES10,ES11,ES12,ES13,ES14,ES15,ES16,ES17,ES18,ES19,ES20,ES21,ES22,ES23,ES24,ES25,ES26,ES27,ES28,ES29,ES30,ES31,ES32&format=rivals&deckname=Emberstone%20Sentinels%20Rivals%20Deck",
@@ -75,23 +77,16 @@ if __name__ == "__main__":
     for deck_name, url in base_urls.items():
         configs.extend(
             [
+                #{
+                #    "url": url,
+                #    "output": f"rivals_decks/{deck_name}",
+                #    "format": "png",
+                #},
                 {
                     "url": url,
-                    "output": f"{deck_name}",
-                    "format": "png",
-                },
-                {
-                    "url": url,
-                    "output": f"{deck_name}/mazo.pdf",
+                    "output": f"rivals_decks/mazo_{deck_name}.pdf",
                     "format": "pdf",
-                    "folder": deck_name,
-                },
-                {
-                    "url": url,
-                    "output": f"{deck_name}/mazo_adri.pdf",
-                    "format": "pdf",
-                    "folder": deck_name,
-                    "background_color": "0.1,0,0",  # Dark grey
+                    "folder": f"rivals_decks/{deck_name}",
                     "margin": 3,
                 },
             ]

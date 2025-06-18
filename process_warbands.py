@@ -54,7 +54,8 @@ def download_images(urls, output_folder):
 
 
 def draw_images_on_page_specific(
-    c, images_with_names, image_width, image_height, margin
+    c, images_with_names, image_width, image_height, margin, direction,  # New option: "ltr" (left-to-right, default) or "rtl" (right-to-left)
+
 ):
     """Draw images on a PDF, creating new pages as needed."""
     page_width, page_height = A4
@@ -73,6 +74,10 @@ def draw_images_on_page_specific(
         for i, (img, _) in enumerate(page_images):
             row = i // images_per_row
             col = i % images_per_row
+
+            # Adjust column for direction
+            if direction == "rtl":
+                col = images_per_row - 1 - col
 
             total_row_width = (
                 images_per_row * image_width + (images_per_row - 1) * margin
@@ -139,6 +144,7 @@ def process_images_and_generate_pdf(images_with_names, output_pdf):
                 image_width=63 * mm,
                 image_height=88 * mm,
                 margin=3 * mm,
+                direction="ltr",  # Default direction is left-to-right
             )
             c.showPage()
         # Add inspired images to a page
@@ -149,6 +155,7 @@ def process_images_and_generate_pdf(images_with_names, output_pdf):
                 image_width=63 * mm,
                 image_height=88 * mm,
                 margin=3 * mm,
+                direction="rtl",  # Inspired images are drawn right-to-left
             )
             c.showPage()
         # Add dedicated images to their own page

@@ -131,6 +131,7 @@ def create_pdf(
                 image_height,
                 margin,
                 background_color,
+                direction="ltr",  # Default to left-to-right
             )
             c.showPage()
 
@@ -154,6 +155,7 @@ def create_pdf(
                 image_height,
                 margin,
                 background_color,
+                direction="rtl",  # Right-to-left for back cards
             )
             c.showPage()
 
@@ -177,8 +179,9 @@ def draw_images_on_page(
     image_height,
     margin,
     background_color,
+    direction,  # New option: "ltr" (left-to-right, default) or "rtl" (right-to-left)
 ):
-    """Draw images on a PDF page with a configurable background color."""
+    """Draw images on a PDF page with a configurable background color and direction."""
     # Set the background color
     c.setFillColorRGB(*background_color)  # Unpack RGB tuple
     c.rect(0, 0, page_width, page_height, fill=True, stroke=False)
@@ -187,6 +190,10 @@ def draw_images_on_page(
     for i, img in enumerate(images):
         row = i // images_per_row
         col = i % images_per_row
+
+        # Adjust column for direction
+        if direction == "rtl":
+            col = images_per_row - 1 - col
 
         total_row_width = images_per_row * image_width + (images_per_row - 1) * margin
         start_x = (page_width - total_row_width) / 2 + col * (image_width + margin)
