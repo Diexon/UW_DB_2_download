@@ -85,12 +85,13 @@ def create_pdf(
     alternate_back_card_path="card_back/power-back.png",
     back_card_limit=12,
     background_color=(1, 1, 1),  # Default to white (RGB)
+    draw_cut_lines=False,        # Added parameter
 ):
     """
     Create a PDF with images at specific sizes and interleave even pages with card backs
     """
     try:
-        c = canvas.Canvas(output_path, pagesize=A4)
+        pdf_canvas = canvas.Canvas(output_path, pagesize=A4)
         page_width, page_height = A4
 
         # Calculate how many images fit horizontally and vertically
@@ -121,7 +122,7 @@ def create_pdf(
                 img for img, _ in images_with_names[start_index:end_index]
             ]
             draw_images_on_page(
-                c,
+                pdf_canvas,
                 current_page_images,
                 images_per_row,
                 images_per_col,
@@ -132,8 +133,9 @@ def create_pdf(
                 margin,
                 background_color,
                 direction="ltr",  # Default to left-to-right
+                draw_cut_lines=draw_cut_lines,  # Pass parameter
             )
-            c.showPage()
+            pdf_canvas.showPage()
 
             # Add back card on even pages
             back_images = []
@@ -145,7 +147,7 @@ def create_pdf(
                 back_counter += 1
 
             draw_images_on_page(
-                c,
+                pdf_canvas,
                 back_images,
                 images_per_row,
                 images_per_col,
@@ -156,10 +158,11 @@ def create_pdf(
                 margin,
                 background_color,
                 direction="rtl",  # Right-to-left for back cards
+                draw_cut_lines=draw_cut_lines,  # Pass parameter
             )
-            c.showPage()
+            pdf_canvas.showPage()
 
-        c.save()
+        pdf_canvas.save()
         print(f"Successfully created PDF: {output_path}")
         return True
 
@@ -168,8 +171,64 @@ def create_pdf(
         return False
 
 
+def draw_pdf_cut_lines(
+    pdf_canvas,
+    images_per_row,
+    images_per_col,
+    page_width,
+    page_height,
+    image_width,
+    image_height,
+    margin
+):
+    """Draw cut lines for guiding vertical and horizontal cuts of the images."""
+    pdf_canvas.setStrokeColorRGB(0, 0, 0)
+    pdf_canvas.setLineWidth(1)
+    # Calculate grid start positions
+    total_row_width = images_per_row * image_width + (images_per_row - 1) * margin
+    grid_start_x = (page_width - total_row_width) / 2
+    total_col_height = images_per_col * image_height + (images_per_col - 1) * margin
+    grid_start_y = page_height - (page_height - total_col_height) / 2 - total_col_height
+
+    CUT_LINE_LENGTH = 5 * mm  # Length of cut lines
+
+    # Draw vertical cut lines between columns
+    for c in range(images_per_row):
+        x = grid_start_x + c * (image_width + margin) - (margin if c == images_per_row else 0)
+        for offset in [0, image_width]:
+            pdf_canvas.line(
+                x + offset,
+                grid_start_y - CUT_LINE_LENGTH,
+                x + offset,
+                grid_start_y
+            )
+            pdf_canvas.line(
+                x + offset,
+                grid_start_y + total_col_height,
+                x + offset,
+                grid_start_y + total_col_height + CUT_LINE_LENGTH
+            )
+
+    # Draw horizontal cut lines between rows
+    for r in range(images_per_col + 1):
+        y = grid_start_y + r * (image_height + margin) - (margin if r == images_per_col else 0)
+        for offset in [0, image_height]:
+            pdf_canvas.line(
+                grid_start_x - CUT_LINE_LENGTH,
+                y + offset,
+                grid_start_x,
+                y + offset
+            )        
+            pdf_canvas.line(
+                grid_start_x + total_row_width,
+                y + offset,
+                grid_start_x + total_row_width + CUT_LINE_LENGTH,
+                y + offset
+            )
+
+
 def draw_images_on_page(
-    c,
+    pdf_canvas,
     images,
     images_per_row,
     images_per_col,
@@ -180,11 +239,12 @@ def draw_images_on_page(
     margin,
     background_color,
     direction,  # New option: "ltr" (left-to-right, default) or "rtl" (right-to-left)
+    draw_cut_lines=False,
 ):
     """Draw images on a PDF page with a configurable background color and direction."""
     # Set the background color
-    c.setFillColorRGB(*background_color)  # Unpack RGB tuple
-    c.rect(0, 0, page_width, page_height, fill=True, stroke=False)
+    pdf_canvas.setFillColorRGB(*background_color)  # Unpack RGB tuple
+    pdf_canvas.rect(0, 0, page_width, page_height, fill=True, stroke=False)
 
     # Draw the images
     for i, img in enumerate(images):
@@ -206,7 +266,7 @@ def draw_images_on_page(
         )
 
         img_reader = ImageReader(img)
-        c.drawImage(
+        pdf_canvas.drawImage(
             img_reader,
             start_x,
             start_y,
@@ -214,6 +274,18 @@ def draw_images_on_page(
             height=image_height,
             preserveAspectRatio=True,
             anchor="c",
+        )
+
+    if draw_cut_lines:
+        draw_pdf_cut_lines(
+            pdf_canvas,
+            images_per_row,
+            images_per_col,
+            page_width,
+            page_height,
+            image_width,
+            image_height,
+            margin
         )
 
 
@@ -227,6 +299,7 @@ def process_images(images_with_names, output_path, output_format="png", **kwargs
             image_height=kwargs.get("image_height", 88 * mm),
             margin=kwargs.get("margin", 0 * mm),
             background_color=kwargs.get("background_color", (1, 1, 1)),
+            draw_cut_lines=kwargs.get("draw_cut_lines", False),  # Pass parameter
         )
     else:
         return save_as_png(images_with_names, output_path)
@@ -385,6 +458,12 @@ def main():
         default="1,1,1",  # Default to white
         help="Background color for the PDF in 'R,G,B' format (values between 0 and 1). Default is white.",
     )
+    parser.add_argument(
+        "--draw-cut-lines",
+        type=lambda x: (str(x).lower() == "true"),
+        default=True,
+        help="Draw black cut lines at the edges of images in the PDF (PDF only). Use 'True' or 'False'. Default is False.",
+    )
 
     args = parser.parse_args()
 
@@ -400,6 +479,7 @@ def main():
             image_height=args.height * mm,
             margin=args.margin * mm,
             background_color=args.background_color,
+            draw_cut_lines=args.draw_cut_lines,  # Pass parameter
         )
     else:
         if not is_valid_url(args.url):
@@ -419,6 +499,7 @@ def main():
             image_height=args.height * mm,
             margin=args.margin * mm,
             background_color=args.background_color,
+            draw_cut_lines=args.draw_cut_lines,  # Pass parameter
         )
 
     sys.exit(0 if success else 1)

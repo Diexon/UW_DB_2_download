@@ -7,6 +7,7 @@ from PIL import Image
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, mm
 from reportlab.lib.utils import ImageReader
+from uw_images_to_pdf import draw_pdf_cut_lines
 
 
 def read_urls_from_folder(folder_path):
@@ -54,8 +55,13 @@ def download_images(urls, output_folder):
 
 
 def draw_images_on_page_specific(
-    c, images_with_names, image_width, image_height, margin, direction,  # New option: "ltr" (left-to-right, default) or "rtl" (right-to-left)
-
+    pdf_canvas,
+    images_with_names,
+    image_width,
+    image_height,
+    margin,
+    direction,
+    draw_cut_lines=True,
 ):
     """Draw images on a PDF, creating new pages as needed."""
     page_width, page_height = A4
@@ -94,7 +100,7 @@ def draw_images_on_page_specific(
             )
 
             img_reader = ImageReader(img)
-            c.drawImage(
+            pdf_canvas.drawImage(
                 img_reader,
                 start_x,
                 start_y,
@@ -106,10 +112,22 @@ def draw_images_on_page_specific(
 
         # Add a new page if there are more images to process
         if page_start + images_per_page < len(images_with_names):
-            c.showPage()
+            pdf_canvas.showPage()
+
+        if draw_cut_lines:
+            draw_pdf_cut_lines(
+                pdf_canvas,
+                images_per_row,
+                images_per_col,
+                page_width,
+                page_height,
+                image_width,
+                image_height,
+                margin,
+            )
 
 
-def process_images_and_generate_pdf(images_with_names, output_pdf):
+def process_images_and_generate_pdf(images_with_names, output_pdf, draw_cut_lines=True):
     """Process images and generate a PDF based on the specified constraints."""
     try:
         if not images_with_names:
@@ -134,42 +152,46 @@ def process_images_and_generate_pdf(images_with_names, output_pdf):
                 other_images.append((img, name))
 
         # Create the PDF
-        c = canvas.Canvas(output_pdf, pagesize=A4)
+        pdf_canvas = canvas.Canvas(output_pdf, pagesize=A4)
 
         # Add other images to a page
         if other_images:
             draw_images_on_page_specific(
-                c,
+                pdf_canvas,
                 other_images,
                 image_width=63 * mm,
                 image_height=88 * mm,
                 margin=3 * mm,
                 direction="ltr",  # Default direction is left-to-right
+                draw_cut_lines=draw_cut_lines,
             )
-            c.showPage()
+            pdf_canvas.showPage()
         # Add inspired images to a page
         if inspired_images:
             draw_images_on_page_specific(
-                c,
+                pdf_canvas,
                 inspired_images,
                 image_width=63 * mm,
                 image_height=88 * mm,
                 margin=3 * mm,
                 direction="rtl",  # Inspired images are drawn right-to-left
+                draw_cut_lines=draw_cut_lines,
             )
-            c.showPage()
+            pdf_canvas.showPage()
         # Add dedicated images to their own page
         if dedicated_images:
             draw_images_on_page_specific(
-                c,
+                pdf_canvas,
                 dedicated_images,
                 image_width=148 * mm,
                 image_height=105 * mm,
                 margin=3 * mm,
+                direction="ltr",  # Default direction is left-to-right
+                draw_cut_lines=draw_cut_lines,
             )
-            c.showPage()
+            pdf_canvas.showPage()
 
-        c.save()
+        pdf_canvas.save()
         print(f"PDF successfully created: {output_pdf}")
 
     except Exception as e:
@@ -195,6 +217,12 @@ def main():
         "--output-folder",
         default="output_pdfs",
         help="Path to the folder where images and PDFs will be saved. Default is 'output_pdfs'.",
+    )
+    parser.add_argument(
+        "--draw-cut-lines",
+        type=lambda x: (str(x).lower() == "true"),
+        default=True,
+        help="Draw black cut lines at the edges of images in the PDF. Use 'True' or 'False'. Default is True.",
     )
     args = parser.parse_args()
 
@@ -243,7 +271,9 @@ def main():
                     continue
 
             # Convert images to PDF
-            process_images_and_generate_pdf(images_with_names, output_pdf_path)
+            process_images_and_generate_pdf(
+                images_with_names, output_pdf_path, draw_cut_lines=args.draw_cut_lines
+            )
 
         except Exception as e:
             print(f"Error processing file {file_path}: {e}")
